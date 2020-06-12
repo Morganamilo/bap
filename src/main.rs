@@ -2,6 +2,7 @@ const TOKEN: &str = env!("BAP");
 
 use serenity::model::prelude::*;
 use serenity::prelude::*;
+use std::iter;
 
 struct Handler;
 
@@ -19,39 +20,41 @@ impl EventHandler for Handler {
                 .to_lowercase()
                 .contains("bap")
         {
-            bap(message, &ctx);
+            if message.mention_everyone {
+                if let Some(guild) = message.guild(&ctx) {
+                    let users = guild.read();
+                    let users = users.members.values().map(|v| v.user.read().clone());
+                    bap(&ctx, &message, users);
+                }
+            } else if message.mentions.is_empty() {
+                bap(&ctx, &message, iter::once(message.author.clone()));
+            } else {
+                bap(&ctx, &message, message.mentions.iter().cloned());
+            }
+
+            react(&ctx, &message, ReactionType::Unicode("🇧".into()));
+            react(&ctx, &message, ReactionType::Unicode("🇦".into()));
+            react(&ctx, &message, ReactionType::Unicode("🇵".into()));
         }
     }
 }
 
-fn bap(message: Message, ctx: &Context) {
-    if message.mention_everyone {
-        if let Some(guild) = message.guild(ctx) {
-            let mut msg = String::new();
-            for user in guild.read().members.values() {
-                msg.push_str(&user.mention());
-                msg.push_str(": Bap\n");
-            }
+fn react(ctx: &Context, message: &Message, reaction: ReactionType) {
+    if let Err(err) = message.react(ctx, reaction) {
+        println!("failed to react: {:?}", err);
+    }
+}
 
-            if let Err(err) = message.channel_id.send_message(ctx, |m| m.content(msg)) {
-                println!("error sending message {:?}", err)
-            }
-        }
-    } else if message.mentions.is_empty() {
-        if let Err(err) = message.reply(ctx, "Bap") {
-            println!("error sending message: {:?}", err)
-        }
-    } else {
-        let mut msg = String::new();
+fn bap(ctx: &Context, message: &Message, mentions: impl Iterator<Item = User>) {
+    let mut msg = String::new();
 
-        for user in &message.mentions {
-            msg.push_str(&user.mention());
-            msg.push_str(": Bap\n");
-        }
+    for user in mentions {
+        msg.push_str(&user.mention());
+        msg.push_str(": Bap\n");
+    }
 
-        if let Err(err) = message.channel_id.send_message(ctx, |m| m.content(msg)) {
-            println!("error sending message: {:?}", err)
-        }
+    if let Err(err) = message.channel_id.send_message(ctx, |m| m.content(msg)) {
+        println!("error sending message: {:?}", err)
     }
 }
 
