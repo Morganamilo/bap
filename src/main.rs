@@ -12,43 +12,34 @@ impl EventHandler for Handler {
     }
 
     fn message(&self, ctx: Context, message: Message) {
-        match ctx.http.get_current_user() {
-            Ok(user) => {
-                if message.author.id != user.id
-                    && message
-                        .content
-                        .replace(char::is_whitespace, "")
-                        .to_lowercase()
-                        .contains("bap")
-                {
-                    bap(message, &ctx);
-                }
-            }
-            Err(err) => println!("error getting current user: {:?}", err),
+        if !message.is_own(&ctx)
+            && message
+                .content
+                .replace(char::is_whitespace, "")
+                .to_lowercase()
+                .contains("bap")
+        {
+            bap(message, &ctx);
         }
     }
 }
 
 fn bap(message: Message, ctx: &Context) {
     if message.mention_everyone {
-        if let Some(guild) = message.guild(&ctx.cache) {
+        if let Some(guild) = message.guild(ctx) {
             let mut msg = String::new();
             for user in guild.read().members.values() {
                 msg.push_str(&user.mention());
                 msg.push_str(": Bap\n");
             }
 
-            if let Some(channel) = message.channel(&ctx.cache) {
-                if let Some(private) = channel.guild() {
-                    if let Err(err) = private.read().send_message(&ctx.http, |m| m.content(msg)) {
-                        println!("error sending message {:?}", err)
-                    }
-                }
+            if let Err(err) = message.channel_id.send_message(ctx, |m| m.content(msg)) {
+                println!("error sending message {:?}", err)
             }
         }
     } else if message.mentions.is_empty() {
-        if let Err(err) = message.reply(&ctx.http, "Bap") {
-            println!("error sending message {:?}", err)
+        if let Err(err) = message.reply(ctx, "Bap") {
+            println!("error sending message: {:?}", err)
         }
     } else {
         let mut msg = String::new();
@@ -58,12 +49,8 @@ fn bap(message: Message, ctx: &Context) {
             msg.push_str(": Bap\n");
         }
 
-        if let Some(channel) = message.channel(&ctx.cache) {
-            if let Some(private) = channel.guild() {
-                if let Err(err) = private.read().send_message(&ctx.http, |m| m.content(msg)) {
-                    println!("error sending message {:?}", err)
-                }
-            }
+        if let Err(err) = message.channel_id.send_message(ctx, |m| m.content(msg)) {
+            println!("error sending message: {:?}", err)
         }
     }
 }
